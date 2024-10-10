@@ -15,7 +15,6 @@ setproctitle.setproctitle('Songha: XAI606')
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # Arrange GPU devices starting from 0
 os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
-# PyTorch 데이터셋 생성
 class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, features, labels):
         self.features = torch.tensor(features, dtype=torch.float32)
@@ -26,8 +25,7 @@ class CustomDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         return self.features[idx], self.labels[idx]
-
-# MLP 모델 정의
+        
 class MLPModel(nn.Module):
     def __init__(self, input_size):
         super(MLPModel, self).__init__()
@@ -43,22 +41,18 @@ class MLPModel(nn.Module):
         return x
 
 def main():
-    # 데이터 로드
     train = pd.read_csv('./dataset/train.csv', index_col='id')
     test = pd.read_csv('./dataset/test.csv', index_col='id')
     submission = pd.read_csv('./dataset/sample_submission.csv', index_col='id')
 
-    # 훈련 데이터와 테스트 데이터 합치기
     all_data = pd.concat([train, test])
     all_data = all_data.drop('target', axis=1)  # 타깃값 제거
 
-    # 원-핫 인코딩 적용
     encoder = OneHotEncoder()
     all_data_encoded = encoder.fit_transform(all_data).toarray()
 
-    num_train = len(train)  # 훈련 데이터 개수
+    num_train = len(train)
 
-    # 훈련 데이터와 테스트 데이터 나누기
     X_train = all_data_encoded[:num_train]
     X_test = all_data_encoded[num_train:]
 
@@ -70,20 +64,17 @@ def main():
                                                           stratify=y,
                                                           random_state=10)
 
-    # 데이터 로드
     train_dataset = CustomDataset(X_train, y_train)
     valid_dataset = CustomDataset(X_valid, y_valid)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1000, shuffle=True)
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=1000, shuffle=False)
 
-    # 모델, 손실 함수, 최적화 기법 정의
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = MLPModel(X_train.shape[1]).to(device)
     criterion = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    # 훈련
     for epoch in tqdm(range(100), desc='[Training]'):  # 300 에폭
         model.train()
         for X_batch, y_batch in train_loader:
@@ -95,7 +86,6 @@ def main():
             loss.backward()
             optimizer.step()
 
-        # 50 에폭마다 검증
         if (epoch + 1) % 10 == 0:
             model.eval()
             with torch.no_grad():
@@ -111,7 +101,6 @@ def main():
 
             print(f'Epoch {epoch + 1}, Validation set [ Accuracy: {accuracy:.4f}, ROC AUC: {roc_auc:.4f} ]')
 
-    # 테스트 데이터에 대한 예측
     model.eval()
     with torch.no_grad():
         y_test_preds = model(torch.tensor(X_test, dtype=torch.float32).to(device)).squeeze().cpu().numpy()
